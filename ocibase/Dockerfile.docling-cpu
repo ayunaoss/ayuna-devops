@@ -1,0 +1,12 @@
+FROM ghcr.io/docling-project/docling-serve-cpu:v1.32.0
+
+USER root
+# Install the missing connector dependencies 
+RUN pip install --upgrade pip && \
+    pip install --no-cache-dir \
+    office365-rest-python-client \
+    opensearch-py \
+    astrapy
+
+# Revert back to the default app user if necessary
+USER 1001 

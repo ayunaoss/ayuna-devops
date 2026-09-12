@@ -1,0 +1,100 @@
+config:
+  adminAddr: 0.0.0.0:15000
+  database:
+    url: postgresql://{{ store.pgsql.username }}:{{ store.pgsql.password }}@{{ store.pgsql.host }}:{{ store.pgsql.port }}/ayuna_aigw_db
+    maxConnections: 25
+  modelCatalog:
+    - file: base-costs.json
+  tracing:
+    otlpEndpoint: http://ayuna-phoenix:4317
+    randomSampling: true
+  logging:
+    level: info
+    format: json
+    database:
+      url: postgresql://{{ store.pgsql.username }}:{{ store.pgsql.password }}@{{ store.pgsql.host }}:{{ store.pgsql.port }}/ayuna_aigw_logs
+      maxConnections: 25
+gateways:
+  tlsgw:
+    cors:
+      allowOrigins:
+        - http://localhost:15000
+        - http://ayuna-temporal-ui:8080
+        - http://ayuna-casdoor:8380
+        - http://ayuna-phoenix:6006
+        - http://ayuna-seaweedfs:23646
+        - https://door.ayunaai.internal:8443
+        - https://otel.ayunaai.internal:8443
+        - https://s3adm.ayunaai.internal:8443
+        - https://wfui.ayunaai.internal:8443
+      allowHeaders:
+        - '*'
+      allowMethods:
+        - '*'
+      allowCredentials: true
+    port: 8443
+    protocol: HTTPS
+    tls:
+      cert: /etc/ssl/certs/ayunaio.crt
+      key: /etc/ssl/private/ayunaio.key
+routes:
+  - name: casdoor
+    gateways: tlsgw
+    hostnames:
+      - door.ayunaio.internal
+    matches:
+      - path:
+          pathPrefix: /
+    backends:
+      - host: ayuna-casdoor:8380
+        policies:
+          backendAuth:
+            passthrough: {}
+    policies:
+      backendAuth:
+        passthrough: {}
+
+  - name: phoenix
+    gateways: tlsgw
+    hostnames:
+      - otel.ayunaio.internal
+    matches:
+      - path:
+          pathPrefix: /
+    backends:
+      - host: ayuna-phoenix:6006
+    policies:
+      basicAuth:
+        htpasswd:
+          file: /config/.htpasswd
+        mode: strict
+
+  - name: seaweedfs
+    gateways: tlsgw
+    hostnames:
+      - s3adm.ayunaio.internal
+    matches:
+      - path:
+          pathPrefix: /
+    backends:
+      - host: ayuna-seaweedfs:23646
+    policies:
+      basicAuth:
+        htpasswd:
+          file: /config/.htpasswd
+        mode: strict
+
+  - name: temporal
+    gateways: tlsgw
+    hostnames:
+      - wfui.ayunaio.internal
+    matches:
+      - path:
+          pathPrefix: /
+    backends:
+      - host: ayuna-temporal-ui:8080
+    policies:
+      basicAuth:
+        htpasswd:
+          file: /config/.htpasswd
+        mode: strict

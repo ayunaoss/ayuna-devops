@@ -1,0 +1,41 @@
+FROM docker.io/library/debian:stable
+
+ARG user=playpod
+ARG group=playpod
+ARG uid=1000
+ARG gid=1000
+
+# Update repo metadata and install base packages
+RUN apt update -y && apt upgrade -y
+RUN apt install -y sudo bash bash-completion \
+    tar zip unzip bzip2 xz-utils patch \
+    curl wget rsync git dos2unix \
+    iproute2 binutils vim universal-ctags \
+    python3-pip python-is-python3 python3-dev python3-venv \
+    openssh-server openssh-client
+
+RUN mkdir -p /var/run/sshd && apt clean && apt remove -y && apt autoremove -y && dpkg --configure -a
+
+RUN groupadd -g ${gid} ${group} && useradd -d /home/${user} -u ${uid} -g ${group} ${user}
+RUN echo -e "${user}        ALL=(ALL)       NOPASSWD: ALL" >>/etc/sudoers
+RUN mkdir -p /home/${user}/{.ssh,.config/temp} /home/${user}/.local/bin /home/${user}/.gradleLocal/tmp && chmod 700 /home/${user}/.ssh
+
+COPY ./assets/user-conf.tar.gz /tmp/
+COPY ./assets/id_rsa.pub /home/${user}/.ssh/authorized_keys
+
+RUN tar -zxf /tmp/user-conf.tar.gz -C /home/${user}/ && sync
+RUN chmod 600 /home/${user}/.ssh/authorized_keys && chown -R ${user}:${group} /home/${user}
+RUN rm -rf /tmp/* /var/tmp/* /root/.cache
+
+## Install user tools
+USER ${user}
+RUN /bin/bash -c "export bin_path=/home/${user}/.local/bin; curl -sfL https://direnv.net/install.sh | bash"
+RUN /bin/bash -c "source ~/.bashrc && python -m pip install --upgrade pip --user && python -m pip install wheel --user"
+
+## Setup sshd and run it
+USER root
+RUN sed -e 's/^\(#PubkeyAuthentication yes\)/PubkeyAuthentication yes/' -i /etc/ssh/sshd_config && ssh-keygen \
+    -q -t rsa -b 2048 -f /etc/ssh/ssh_host_rsa_key -N '' && ssh-keygen -q -t ecdsa -f /etc/ssh/ssh_host_ecdsa_key -N '' && ssh-keygen \
+    -t dsa -f /etc/ssh/ssh_host_ed25519_key -N '' && echo 'root:root' | chpasswd
+ENV TERM xterm
+EXPOSE 22

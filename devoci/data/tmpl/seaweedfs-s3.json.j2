@@ -1,0 +1,33 @@
+{
+  "identities": [
+    {
+      "actions": [
+        "Admin:ayuna-*",
+        "Read:ayuna-*",
+        "Write:ayuna-*",
+        "List:ayuna-*",
+        "Tagging:ayuna-*"
+      ],
+      "credentials": [
+        {
+          "accessKey": {{ store.seaweedfs.admin.access_key | tojson }},
+          "secretKey": {{ store.seaweedfs.admin.access_secret | tojson }}
+        }
+      ],
+      "name": "ayunaadmin"
+    },
+    {
+      "actions": [
+        "Read:ayuna-*",
+        "List:ayuna-*"
+      ],
+      "credentials": [
+        {
+          "accessKey": {{ store.seaweedfs.reader.access_key | tojson }},
+          "secretKey": {{ store.seaweedfs.reader.access_secret | tojson }}
+        }
+      ],
+      "name": "ayunareader"
+    }
+  ]
+}

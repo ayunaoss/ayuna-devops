@@ -1,0 +1,456 @@
+networks:
+  default:
+    name: ayuna-net
+    external: true
+
+volumes:
+  pgsql_data:
+    external: true
+  arcadedb_data:
+    external: true
+  arcadedb_backup:
+    external: true
+  arcadedb_config:
+    external: true
+  arcadedb_logs:
+    external: true
+  valkey_data:
+    external: true
+  seaweedfs_data:
+    external: true
+  nats_data:
+    external: true
+  nats_nui:
+    external: true
+  aigw_config:
+    external: true
+  extra_tools:
+    external: true
+  casdoor_config:
+    external: true
+  casdoor_logs:
+    external: true
+  caddy_data:
+    external: true
+  caddy_config:
+    external: true
+
+services:
+  ## Init container to set system parameters before starting other services
+  sysoci-init:
+    image: busybox
+    container_name: ayuna-sysoci-init
+    hostname: ayuna-sysoci-init
+    command: ["/bin/sh", "/tmp/data/sysoci-init.sh"]
+    volumes:
+      - aigw_config:/aigw/config
+      - casdoor_config:/casdoor/config
+      - extra_tools:/tools
+      - ./env:/tmp/env:ro
+      - ./data:/tmp/data:ro
+    networks:
+      - default
+    privileged: true
+    restart: "no"
+
+  ## PostgreSQL with pgvector extension for vector storage
+  pgsql:
+    container_name: ayuna-pgsql
+    hostname: ayuna-pgsql
+    image: pgvector/pgvector:pg17
+    ports:
+      - "5433:5432"
+    env_file:
+      - env/pgsql.env
+    volumes:
+      - pgsql_data:/var/lib/postgresql/data
+    networks:
+      - default
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ayunauser"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          cpus: "2.0"
+          memory: 4G
+        reservations:
+          cpus: "1.0"
+          memory: 2G
+
+  ## ArcadeDB for multi-model graph and document storage
+  arcadedb:
+    container_name: ayuna-arcadedb
+    hostname: ayuna-arcadedb
+    image: arcadedata/arcadedb:26.9.1
+    ports:
+      - "2480:2480"
+      - "2424:2424"
+    env_file:
+      - env/arcadedb.env
+    volumes:
+      - arcadedb_data:/home/arcadedb/databases
+      - arcadedb_backup:/home/arcadedb/backups
+      - arcadedb_config:/home/arcadedb/config
+      - arcadedb_logs:/home/arcadedb/log
+    networks:
+      - default
+    restart: unless-stopped
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          "wget -qO /dev/null http://root:$$ARCADEDB_ROOT_PASSWORD@localhost:2480/api/v1/server || exit 1",
+        ]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+    deploy:
+      resources:
+        limits:
+          cpus: "2.0"
+          memory: 4G
+        reservations:
+          cpus: "1.0"
+          memory: 2G
+
+  ## ValKey in-memory key-value store for fast data retrieval
+  valkey:
+    container_name: ayuna-valkey
+    hostname: ayuna-valkey
+    image: valkey/valkey:9
+    depends_on:
+      sysoci-init:
+        condition: service_completed_successfully
+    ports:
+      - "6380:6379"
+    env_file:
+      - env/valkey.env
+    volumes:
+      - valkey_data:/data
+      - ./env/valkey.conf:/etc/valkey/valkey.conf:ro
+    networks:
+      - default
+    restart: unless-stopped
+    command: ["valkey-server", "/etc/valkey/valkey.conf"]
+    healthcheck:
+      test: ["CMD-SHELL", 'valkey-cli -a "$$VALKEY_PASSWORD" ping | grep PONG']
+      interval: 5s
+      timeout: 10s
+      retries: 5
+      start_period: 10s
+    deploy:
+      resources:
+        limits:
+          cpus: "2.0"
+          memory: 4G
+        reservations:
+          cpus: "0.25"
+          memory: 256M
+
+  ## Seaweedfs object storage
+  seaweedfs:
+    container_name: ayuna-seaweedfs
+    hostname: ayuna-seaweedfs
+    image: chrislusf/seaweedfs:4.46
+    ports:
+      - "8333:8333" # S3 Endpoint
+      - "8888:8888" # Filer UI
+      - "9333:9333" # Master UI
+      - "23646:23646" # Admin UI
+    entrypoint: ["weed"]
+    command:
+      [
+        "mini",
+        "-dir=/data",
+        "-s3.config=/etc/seaweedfs/s3.json",
+        "-bucket=ayuna-kbase,ayuna-aigw,ayuna-door",
+      ]
+    volumes:
+      - seaweedfs_data:/data
+      - ./env/seaweedfs-s3.json:/etc/seaweedfs/s3.json:ro
+    networks:
+      - default
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-sfo", "/dev/null", "http://localhost:9333/"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+
+  ## NATS messaging system
+  nats:
+    image: nats:2.14.6
+    container_name: ayuna-nats
+    hostname: ayuna-nats
+    command: ["-js", "-c", "/etc/nats/nats.conf"]
+    ports:
+      - "8180:8080" # WebSocket only
+      - "8222:8222" # Monitoring (optional)
+      - "4222:4222" # TCP client connections
+    restart: unless-stopped
+    networks:
+      - default
+    volumes:
+      - nats_data:/data
+      - ./env/nats.conf:/etc/nats/nats.conf:ro
+    deploy:
+      resources:
+        limits:
+          cpus: "2.0"
+          memory: 4G
+        reservations:
+          cpus: "0.25"
+          memory: 256M
+
+  ## UI for NATS messaging system
+  nats-nui:
+    image: ghcr.io/nats-nui/nui:latest
+    container_name: ayuna-nats-nui
+    hostname: ayuna-nats-nui
+    depends_on:
+      nats:
+        condition: service_started
+    ports:
+      - "31311:31311"
+    restart: unless-stopped
+    networks:
+      - default
+    volumes:
+      - nats_nui:/db
+
+  ## Docling parser service for document processing
+  docling:
+    image: ghcr.io/ayunaoss/ayuna-oci-docling-cpu:v1.32.0
+    container_name: ayuna-docling
+    hostname: ayuna-docling
+    networks:
+      - default
+    ports:
+      - "5001:5001"
+    restart: unless-stopped
+    env_file:
+      - env/docling.env
+    volumes:
+      - ./data/docling/models:/opt/app-root/src/models
+    healthcheck:
+      test: ["CMD", "curl", "-sfo", "/dev/null", "http://localhost:5001/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+    deploy:
+      resources:
+        limits:
+          cpus: "4.0"
+          memory: 8G
+        reservations:
+          cpus: "1.0"
+          memory: 512M
+
+  ## Temporal services for workflow orchestration
+  temporal-admin-tools:
+    image: temporalio/admin-tools:1.32
+    container_name: ayuna-temporal-admin-tools
+    hostname: ayuna-temporal-admin-tools
+    restart: on-failure:6
+    depends_on:
+      pgsql:
+        condition: service_healthy
+    env_file:
+      - env/temporal.env
+    networks:
+      - default
+    volumes:
+      - ./data/temporal/scripts:/scripts
+    entrypoint: ["/bin/sh"]
+    command: "/scripts/init-temporal-pgsql.sh"
+
+  temporal:
+    image: temporalio/server:1.32
+    container_name: ayuna-temporal
+    hostname: ayuna-temporal
+    depends_on:
+      temporal-admin-tools:
+        condition: service_completed_successfully
+    env_file:
+      - env/temporal.env
+    networks:
+      - default
+    ports:
+      - "7233:7233"
+    volumes:
+      - ./data/temporal/dynconf:/etc/temporal/config/dynamicconfig
+    healthcheck:
+      test: ["CMD", "nc", "-z", "localhost", "7233"]
+      interval: 5s
+      timeout: 3s
+      start_period: 30s
+      retries: 60
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          cpus: "4.0"
+          memory: 8G
+        reservations:
+          cpus: "1.0"
+          memory: 2G
+
+  temporal-create-namespace:
+    image: temporalio/admin-tools:1.32
+    container_name: ayuna-temporal-create-namespace
+    hostname: ayuna-temporal-create-namespace
+    restart: on-failure:5
+    depends_on:
+      temporal:
+        condition: service_healthy
+    env_file:
+      - env/temporal.env
+    networks:
+      - default
+    volumes:
+      - ./data/temporal/scripts:/scripts
+    entrypoint: ["/bin/sh"]
+    command: "/scripts/create-temporal-ns.sh"
+
+  temporal-ui:
+    image: temporalio/ui:2.54.1
+    container_name: ayuna-temporal-ui
+    hostname: ayuna-temporal-ui
+    depends_on:
+      temporal:
+        condition: service_healthy
+      temporal-create-namespace:
+        condition: service_completed_successfully
+    env_file:
+      - env/temporal.env
+    networks:
+      - default
+    ports:
+      - 8280:8080
+    healthcheck:
+      test: ["CMD", "nc", "-z", "localhost", "8080"]
+      interval: 5s
+      timeout: 3s
+      start_period: 30s
+      retries: 60
+    restart: unless-stopped
+
+  phoenix:
+    image: arizephoenix/phoenix:20 # Must be greater than 4.0 version to work
+    container_name: ayuna-phoenix
+    hostname: ayuna-phoenix
+    depends_on:
+      pgsql:
+        condition: service_healthy
+    ports:
+      - 6006:6006 # PHOENIX_PORT
+      - 4318:4317 # PHOENIX_GRPC_PORT
+      - 9190:9090 # [Optional] PROMETHEUS PORT IF ENABLED
+    env_file:
+      - env/phoenix.env
+    networks:
+      - default
+    restart: unless-stopped
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "python3",
+          "-c",
+          "import urllib.request; urllib.request.urlopen('http://localhost:6006/health')",
+        ]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+    deploy:
+      resources:
+        limits:
+          cpus: "2.0"
+          memory: 4G
+        reservations:
+          cpus: "0.25"
+          memory: 256M
+
+  casdoor:
+    image: casbin/casdoor:4.3.0
+    container_name: ayuna-casdoor
+    hostname: ayuna-casdoor
+    restart: unless-stopped
+    ports:
+      - "8380:8380"
+    environment:
+      - GIN_MODE=release
+    volumes:
+      - casdoor_config:/conf
+      - casdoor_logs:/logs
+    networks:
+      - default
+    depends_on:
+      sysoci-init:
+        condition: service_completed_successfully
+      pgsql:
+        condition: service_healthy
+      valkey:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "-qO", "/dev/null", "http://localhost:8380"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+
+  agentgateway:
+    image: ghcr.io/agentgateway/agentgateway:v1.5.0
+    container_name: ayuna-aigw
+    hostname: ayuna-aigw
+    depends_on:
+      sysoci-init:
+        condition: service_completed_successfully
+      pgsql:
+        condition: service_healthy
+      phoenix:
+        condition: service_healthy
+      casdoor:
+        condition: service_healthy
+      seaweedfs:
+        condition: service_healthy
+      temporal-ui:
+        condition: service_healthy
+    networks:
+      - default
+    ports:
+      - "3180:3000"
+      - "4180:4000"
+      - "8443:8443"
+      - "127.0.0.1:15000:15000"
+    environment:
+      - ADMIN_ADDR=0.0.0.0:15000
+    volumes:
+      - aigw_config:/config
+      - extra_tools:/tools
+      - ./env/ssl/ayunaio.crt:/etc/ssl/certs/ayunaio.crt:ro
+      - ./env/ssl/ayunaio.key:/etc/ssl/private/ayunaio.key:ro
+    restart: unless-stopped
+    healthcheck:
+      test:
+        ["CMD", "/tools/wget", "--spider", "-q", "http://localhost:15000/ui"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
+    deploy:
+      resources:
+        limits:
+          cpus: "2.0"
+          memory: 4G
+        reservations:
+          cpus: "0.25"
+          memory: 256M

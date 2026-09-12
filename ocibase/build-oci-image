@@ -1,0 +1,102 @@
+#!/usr/bin/env bash
+
+set -euo pipefail
+
+usage() {
+    cat <<'EOF'
+Usage:
+  build-oci-image <registry> <oci-target> <tag>
+
+Arguments:
+  registry    Container registry name (for example: ghcr.io)
+  oci-target  One of: oci-py, oci-js, oci-go, oci-pyjs, oci-builder, oci-docling-cpu
+              Short aliases also accepted: py, js, go, pyjs, builder, docling-cpu
+  tag         Image tag (for example: v1.0.0)
+
+Example:
+  ./build-oci-image ghcr.io oci-builder v1.0.0
+EOF
+}
+
+normalize_target() {
+    case "$1" in
+    oci-py | py)
+        printf '%s\n' "oci-py"
+        ;;
+    oci-js | js)
+        printf '%s\n' "oci-js"
+        ;;
+    oci-go | go)
+        printf '%s\n' "oci-go"
+        ;;
+    oci-pyjs | pyjs)
+        printf '%s\n' "oci-pyjs"
+        ;;
+    oci-builder | builder)
+        printf '%s\n' "oci-builder"
+        ;;
+    oci-docling-cpu | docling-cpu)
+        printf '%s\n' "oci-docling-cpu"
+        ;;
+    *)
+        return 1
+        ;;
+    esac
+}
+
+if [[ "${1:-}" == "-h" || "${1:-}" == "--help" ]]; then
+    usage
+    exit 0
+fi
+
+if [[ "$#" -ne 3 ]]; then
+    usage
+    exit 1
+fi
+
+registry="$1"
+target_input="$2"
+tag="$3"
+
+## Check if registry is valid and not empty
+registry="${registry%/}"
+if [[ -z "$registry" ]]; then
+    echo "Error: registry must not be empty" >&2
+    exit 1
+fi
+
+## Normalize and validate the OCI target
+if ! oci_target="$(normalize_target "$target_input")"; then
+    echo "Error: invalid oci-target '$target_input'" >&2
+    usage
+    exit 1
+fi
+
+## Check for a valid, non-empty tag
+if [[ -z "$tag" ]]; then
+    echo "Error: tag must not be empty" >&2
+    usage
+    exit 1
+fi
+
+## Main business-logic to build the OCI image
+script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+context_dir="$script_dir"
+dockerfile="$context_dir/Dockerfile"
+docling_cpu_dockerfile="${context_dir}/Dockerfile.docling-cpu"
+image_name="$registry/ayunaoss/ayuna-${oci_target}:${tag}"
+
+echo "Building image: $image_name"
+echo "Using AYUNA_OCI=$oci_target"
+
+if [[ "$oci_target" == "oci-docling-cpu" ]]; then
+    dockerfile="$docling_cpu_dockerfile"
+fi
+
+docker build \
+    --file "$dockerfile" \
+    --build-arg "AYUNA_OCI=$oci_target" \
+    --tag "$image_name" \
+    "$context_dir"
+
+echo "Build complete: $image_name"

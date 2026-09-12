@@ -1,0 +1,40 @@
+network_name: ayuna-net
+
+env_templates:
+  pgsql.env.j2: pgsql.env
+  arcadedb.env.j2: arcadedb.env
+  valkey.conf.j2: valkey.conf
+  valkey.env.j2: valkey.env
+  seaweedfs-s3.json.j2: seaweedfs-s3.json
+  seaweedfs.env.j2: seaweedfs.env
+  temporal.env.j2: temporal.env
+  nats.conf.j2: nats.conf
+  nats.env.j2: nats.env
+  phoenix.env.j2: phoenix.env
+  agentgateway.yaml.j2: agentgateway.yaml
+  casdoor.conf.j2: casdoor.conf
+  docling.env.j2: docling.env
+
+backend_volumes:
+  - pgsql_data
+  - arcadedb_data
+  - arcadedb_backup
+  - arcadedb_config
+  - arcadedb_logs
+  - valkey_data
+  - seaweedfs_data
+  - nats_data
+  - nats_nui
+  - aigw_config
+  - extra_tools
+  - casdoor_config
+  - casdoor_logs
+  - caddy_config
+  - caddy_data
+
+sql_dbs:
+  - ayuna_kbase_db
+  - ayuna_aigw_db
+  - ayuna_aigw_logs
+  - ayuna_otel_db
+  - ayuna_door_db

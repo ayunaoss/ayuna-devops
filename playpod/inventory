@@ -1,0 +1,2 @@
+[all]
+pod01.dev.local ansible_port=8122
