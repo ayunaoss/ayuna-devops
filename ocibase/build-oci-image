@@ -32,6 +32,12 @@ normalize_target() {
     oci-pyjs | pyjs)
         printf '%s\n' "oci-pyjs"
         ;;
+    oci-gojs | gojs)
+        printf '%s\n' "oci-gojs"
+        ;;
+    oci-pygojs | pygojs)
+        printf '%s\n' "oci-pygojs"
+        ;;
     oci-builder | builder)
         printf '%s\n' "oci-builder"
         ;;

@@ -1,4 +1,9 @@
-#!/usr/bin/env python3
+# /// script
+# requires-python = ">=3.12,<3.14"
+# dependencies = [
+#   "cryptography",
+# ]
+# ///
 
 from cryptography.fernet import Fernet
 

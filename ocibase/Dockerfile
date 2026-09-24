@@ -1,10 +1,11 @@
 # syntax=docker/dockerfile:1.4
 
-## Valid values for AYUNA_OCI: oci-py, oci-js, oci-go, oci-pyjs, oci-builder
+## Valid values for AYUNA_OCI:
+# oci-py, oci-js, oci-go, oci-pyjs, oci-gojs, oci-pygojs, oci-builder and oci-docling-cpu
 ARG AYUNA_OCI=oci-builder
 ARG AYUNA_PYTHON_VER=3.12.14
-ARG AYUNA_NODEJS_VER=24.20.0
-ARG AYUNA_GOLANG_VER=1.27.0
+ARG AYUNA_NODEJS_VER=24.21.0
+ARG AYUNA_GOLANG_VER=1.27.1
 
 ARG AYUNA_UID=1001
 ARG AYUNA_GID=1001
@@ -14,7 +15,7 @@ ARG AYUNA_UDK=${AYUNA_HOME}/udk
 ##########################################
 ## The builder image to build the tools ##
 ##########################################
-FROM ubuntu:24.04 AS ayuna-builder
+FROM debian:trixie-slim AS ayuna-builder
 
 ARG AYUNA_PYTHON_VER
 ARG AYUNA_NODEJS_VER
@@ -48,7 +49,7 @@ RUN set -eu; \
     rm -rf /root/.cache
 
 ##### Base image with required packages and user #####
-FROM ubuntu:24.04 AS ayuna-ocibase
+FROM debian:trixie-slim AS ayuna-ocibase
 
 ARG TIMEZONE=UTC
 ARG AYUNA_UID
@@ -109,13 +110,12 @@ COPY --chown=ayuna:ayuna ./skel/profile ${AYUNA_HOME}/.profile
 COPY --chown=ayuna:ayuna ./skel/bashrc ${AYUNA_HOME}/.bashrc
 
 RUN set -eu; \
-    chmod 644 ${AYUNA_HOME}/.profile ${AYUNA_HOME}/.bashrc; \
-    echo "Installing uv python package manager..."; \
-    curl -LsSf https://astral.sh/uv/install.sh | sh
+    chmod 644 ${AYUNA_HOME}/.profile ${AYUNA_HOME}/.bashrc
 
 ##### Setup image for oci-py #####
 FROM ayuna-ocibase AS ayuna-oci-py
 
+ARG AYUNA_HOME
 ARG AYUNA_PYTHON_VER
 ARG AYUNA_UDK
 
@@ -128,9 +128,14 @@ WORKDIR /
 
 COPY --from=ayuna-builder ${AYUNA_UDK}/py-${AYUNA_PYTHON_VER} ${AYUNA_UDK}/py-${AYUNA_PYTHON_VER}
 
+RUN set -eu; \
+    echo "Installing uv python package manager..."; \
+    curl -LsSf https://astral.sh/uv/install.sh | sh
+
 ##### Setup image for oci-js #####
 FROM ayuna-ocibase AS ayuna-oci-js
 
+ARG AYUNA_HOME
 ARG AYUNA_NODEJS_VER
 ARG AYUNA_UDK
 
@@ -141,9 +146,14 @@ WORKDIR /
 
 COPY --from=ayuna-builder ${AYUNA_UDK}/node-${AYUNA_NODEJS_VER} ${AYUNA_UDK}/node-${AYUNA_NODEJS_VER}
 
+RUN set -eu; \
+    echo "Installing pnpm js package manager..."; \
+    wget -qO- https://get.pnpm.io/install.sh | env ENV="${AYUNA_HOME}/.bashrc" SHELL="$(which bash)" bash -
+
 ##### Setup image for oci-go #####
 FROM ayuna-ocibase AS ayuna-oci-go
 
+ARG AYUNA_HOME
 ARG AYUNA_GOLANG_VER
 ARG AYUNA_UDK
 
@@ -160,12 +170,12 @@ COPY --from=ayuna-builder ${AYUNA_UDK}/goext ${AYUNA_UDK}/goext
 ##### Setup image for oci-pyjs #####
 FROM ayuna-ocibase AS ayuna-oci-pyjs
 
+ARG AYUNA_HOME
 ARG AYUNA_PYTHON_VER
 ARG AYUNA_NODEJS_VER
 ARG AYUNA_UDK
 
-ENV PATH=${AYUNA_UDK}/py-${AYUNA_PYTHON_VER}/bin:${PATH}
-ENV PATH=${AYUNA_UDK}/node-${AYUNA_NODEJS_VER}/bin:${PATH}
+ENV PATH=${AYUNA_UDK}/py-${AYUNA_PYTHON_VER}/bin:${AYUNA_UDK}/node-${AYUNA_NODEJS_VER}/bin:${PATH}
 ENV LD_LIBRARY_PATH=${AYUNA_UDK}/py-${AYUNA_PYTHON_VER}/lib:${LD_LIBRARY_PATH}
 ENV PKG_CONFIG_PATH=${AYUNA_UDK}/py-${AYUNA_PYTHON_VER}/lib/pkgconfig:${PKG_CONFIG_PATH}
 
@@ -175,17 +185,45 @@ WORKDIR /
 COPY --from=ayuna-builder ${AYUNA_UDK}/py-${AYUNA_PYTHON_VER} ${AYUNA_UDK}/py-${AYUNA_PYTHON_VER}
 COPY --from=ayuna-builder ${AYUNA_UDK}/node-${AYUNA_NODEJS_VER} ${AYUNA_UDK}/node-${AYUNA_NODEJS_VER}
 
-##### Setup image for oci-builder #####
-FROM ayuna-ocibase AS ayuna-oci-builder
+RUN set -eu; \
+    echo "Installing uv python package manager..."; \
+    curl -LsSf https://astral.sh/uv/install.sh | sh; \
+    echo "Installing pnpm js package manager..."; \
+    wget -qO- https://get.pnpm.io/install.sh | env ENV="${AYUNA_HOME}/.bashrc" SHELL="$(which bash)" bash -
 
+##### Setup image for oci-gojs #####
+FROM ayuna-ocibase AS ayuna-oci-gojs
+
+ARG AYUNA_HOME
+ARG AYUNA_GOLANG_VER
+ARG AYUNA_NODEJS_VER
+ARG AYUNA_UDK
+
+ENV PATH=${AYUNA_UDK}/go-${AYUNA_GOLANG_VER}/bin:${AYUNA_UDK}/goext/bin:${AYUNA_UDK}/node-${AYUNA_NODEJS_VER}/bin:${PATH}
+ENV GOROOT=${AYUNA_UDK}/go-${AYUNA_GOLANG_VER}
+ENV GOPATH=${AYUNA_UDK}/goext
+
+USER root
+WORKDIR /
+
+COPY --from=ayuna-builder ${AYUNA_UDK}/go-${AYUNA_GOLANG_VER} ${AYUNA_UDK}/go-${AYUNA_GOLANG_VER}
+COPY --from=ayuna-builder ${AYUNA_UDK}/goext ${AYUNA_UDK}/goext
+COPY --from=ayuna-builder ${AYUNA_UDK}/node-${AYUNA_NODEJS_VER} ${AYUNA_UDK}/node-${AYUNA_NODEJS_VER}
+
+RUN set -eu; \
+    echo "Installing pnpm js package manager..."; \
+    wget -qO- https://get.pnpm.io/install.sh | env ENV="${AYUNA_HOME}/.bashrc" SHELL="$(which bash)" bash -
+
+##### Setup image for oci-pygojs #####
+FROM ayuna-ocibase AS ayuna-oci-pygojs
+
+ARG AYUNA_HOME
 ARG AYUNA_PYTHON_VER
 ARG AYUNA_NODEJS_VER
 ARG AYUNA_GOLANG_VER
 ARG AYUNA_UDK
 
-ENV PATH=${AYUNA_UDK}/py-${AYUNA_PYTHON_VER}/bin:${PATH}
-ENV PATH=${AYUNA_UDK}/node-${AYUNA_NODEJS_VER}/bin:${PATH}
-ENV PATH=${AYUNA_UDK}/go-${AYUNA_GOLANG_VER}/bin:${AYUNA_UDK}/goext/bin:${PATH}
+ENV PATH=${AYUNA_UDK}/py-${AYUNA_PYTHON_VER}/bin:${AYUNA_UDK}/go-${AYUNA_GOLANG_VER}/bin:${AYUNA_UDK}/goext/bin:${AYUNA_UDK}/node-${AYUNA_NODEJS_VER}/bin:${PATH}
 ENV GOROOT=${AYUNA_UDK}/go-${AYUNA_GOLANG_VER}
 ENV GOPATH=${AYUNA_UDK}/goext
 ENV LD_LIBRARY_PATH=${AYUNA_UDK}/py-${AYUNA_PYTHON_VER}/lib:${LD_LIBRARY_PATH}
@@ -198,6 +236,15 @@ COPY --from=ayuna-builder ${AYUNA_UDK}/py-${AYUNA_PYTHON_VER} ${AYUNA_UDK}/py-${
 COPY --from=ayuna-builder ${AYUNA_UDK}/node-${AYUNA_NODEJS_VER} ${AYUNA_UDK}/node-${AYUNA_NODEJS_VER}
 COPY --from=ayuna-builder ${AYUNA_UDK}/go-${AYUNA_GOLANG_VER} ${AYUNA_UDK}/go-${AYUNA_GOLANG_VER}
 COPY --from=ayuna-builder ${AYUNA_UDK}/goext ${AYUNA_UDK}/goext
+
+RUN set -eu; \
+    echo "Installing uv python package manager..."; \
+    curl -LsSf https://astral.sh/uv/install.sh | sh; \
+    echo "Installing pnpm js package manager..."; \
+    wget -qO- https://get.pnpm.io/install.sh | env ENV="${AYUNA_HOME}/.bashrc" SHELL="$(which bash)" bash -
+
+##### Setup image for oci-builder #####
+FROM ayuna-oci-pygojs AS ayuna-oci-builder
 
 RUN set -eu; \
     echo "Setting up OCI-BUILDER target..."; \
