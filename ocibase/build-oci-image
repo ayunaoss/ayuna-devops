@@ -9,8 +9,8 @@ Usage:
 
 Arguments:
   registry    Container registry name (for example: ghcr.io)
-  oci-target  One of: oci-py, oci-js, oci-go, oci-pyjs, oci-builder, oci-docling-cpu
-              Short aliases also accepted: py, js, go, pyjs, builder, docling-cpu
+  oci-target  One of: oci-base, oci-py, oci-js, oci-go, oci-pyjs, oci-gojs, oci-pygojs, oci-builder, oci-docling-cpu
+              Short aliases also accepted: base, py, js, go, pyjs, gojs, pygojs, builder, docling-cpu
   tag         Image tag (for example: v1.0.0)
 
 Example:
@@ -20,6 +20,9 @@ EOF
 
 normalize_target() {
     case "$1" in
+    oci-base | base)
+        printf '%s\n' "oci-base"
+        ;;
     oci-py | py)
         printf '%s\n' "oci-py"
         ;;
