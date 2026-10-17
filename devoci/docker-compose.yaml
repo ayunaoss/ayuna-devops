@@ -30,10 +30,6 @@ volumes:
     external: true
   casdoor_logs:
     external: true
-  caddy_data:
-    external: true
-  caddy_config:
-    external: true
 
 services:
   ## Init container to set system parameters before starting other services

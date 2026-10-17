@@ -29,8 +29,6 @@ backend_volumes:
   - extra_tools
   - casdoor_config
   - casdoor_logs
-  - caddy_config
-  - caddy_data
 
 sql_dbs:
   - ayuna_kbase_db
