@@ -37,7 +37,7 @@ services:
     image: busybox
     container_name: ayuna-sysoci-init
     hostname: ayuna-sysoci-init
-    command: ["/bin/sh", "/tmp/data/sysoci-init.sh"]
+    command: ['/bin/sh', '/tmp/data/sysoci-init.sh']
     volumes:
       - aigw_config:/aigw/config
       - casdoor_config:/casdoor/config
@@ -47,15 +47,15 @@ services:
     networks:
       - default
     privileged: true
-    restart: "no"
+    restart: 'no'
 
   ## PostgreSQL with pgvector extension for vector storage
   pgsql:
+    image: pgvector/pgvector:pg18
     container_name: ayuna-pgsql
     hostname: ayuna-pgsql
-    image: pgvector/pgvector:pg17
     ports:
-      - "5433:5432"
+      - '5433:5432'
     env_file:
       - env/pgsql.env
     volumes:
@@ -63,7 +63,7 @@ services:
     networks:
       - default
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ayunauser"]
+      test: ['CMD-SHELL', 'pg_isready -U ayunauser']
       interval: 10s
       timeout: 5s
       retries: 5
@@ -71,20 +71,20 @@ services:
     deploy:
       resources:
         limits:
-          cpus: "2.0"
+          cpus: '2.0'
           memory: 4G
         reservations:
-          cpus: "1.0"
+          cpus: '1.0'
           memory: 2G
 
   ## ArcadeDB for multi-model graph and document storage
   arcadedb:
+    image: arcadedata/arcadedb:26.10.2
     container_name: ayuna-arcadedb
     hostname: ayuna-arcadedb
-    image: arcadedata/arcadedb:26.9.1
     ports:
-      - "2480:2480"
-      - "2424:2424"
+      - '2480:2480'
+      - '2424:2424'
     env_file:
       - env/arcadedb.env
     volumes:
@@ -98,8 +98,8 @@ services:
     healthcheck:
       test:
         [
-          "CMD-SHELL",
-          "wget -qO /dev/null http://root:$$ARCADEDB_ROOT_PASSWORD@localhost:2480/api/v1/server || exit 1",
+          'CMD-SHELL',
+          'wget -qO /dev/null http://root:$$ARCADEDB_ROOT_PASSWORD@localhost:2480/api/v1/server || exit 1',
         ]
       interval: 10s
       timeout: 5s
@@ -108,22 +108,22 @@ services:
     deploy:
       resources:
         limits:
-          cpus: "2.0"
+          cpus: '2.0'
           memory: 4G
         reservations:
-          cpus: "1.0"
+          cpus: '1.0'
           memory: 2G
 
   ## ValKey in-memory key-value store for fast data retrieval
   valkey:
+    image: valkey/valkey:9
     container_name: ayuna-valkey
     hostname: ayuna-valkey
-    image: valkey/valkey:9
     depends_on:
       sysoci-init:
         condition: service_completed_successfully
     ports:
-      - "6380:6379"
+      - '6380:6379'
     env_file:
       - env/valkey.env
     volumes:
@@ -132,9 +132,9 @@ services:
     networks:
       - default
     restart: unless-stopped
-    command: ["valkey-server", "/etc/valkey/valkey.conf"]
+    command: ['valkey-server', '/etc/valkey/valkey.conf']
     healthcheck:
-      test: ["CMD-SHELL", 'valkey-cli -a "$$VALKEY_PASSWORD" ping | grep PONG']
+      test: ['CMD-SHELL', 'valkey-cli -a "$$VALKEY_PASSWORD" ping | grep PONG']
       interval: 5s
       timeout: 10s
       retries: 5
@@ -142,29 +142,45 @@ services:
     deploy:
       resources:
         limits:
-          cpus: "2.0"
+          cpus: '2.0'
           memory: 4G
         reservations:
-          cpus: "0.25"
+          cpus: '0.25'
           memory: 256M
+
+  ## Web based administration interface for ValKey
+  valkey-admin:
+    image: ghcr.io/valkey-io/valkey-admin:latest
+    container_name: ayuna-valkey-admin
+    hostname: ayuna-valkey-admin
+    ports:
+      - '6390:8080'
+    env_file:
+      - env/valkey.env
+    restart: unless-stopped
+    networks:
+      - default
+    depends_on:
+      valkey:
+        condition: service_started
 
   ## Seaweedfs object storage
   seaweedfs:
+    image: chrislusf/seaweedfs:4.48
     container_name: ayuna-seaweedfs
     hostname: ayuna-seaweedfs
-    image: chrislusf/seaweedfs:4.46
     ports:
-      - "8333:8333" # S3 Endpoint
-      - "8888:8888" # Filer UI
-      - "9333:9333" # Master UI
-      - "23646:23646" # Admin UI
-    entrypoint: ["weed"]
+      - '8333:8333' # S3 Endpoint
+      - '8888:8888' # Filer UI
+      - '9333:9333' # Master UI
+      - '23646:23646' # Admin UI
+    entrypoint: ['weed']
     command:
       [
-        "mini",
-        "-dir=/data",
-        "-s3.config=/etc/seaweedfs/s3.json",
-        "-bucket=ayuna-kbase,ayuna-aigw,ayuna-door",
+        'mini',
+        '-dir=/data',
+        '-s3.config=/etc/seaweedfs/s3.json',
+        '-bucket=ayuna-kbase,ayuna-aigw,ayuna-door',
       ]
     volumes:
       - seaweedfs_data:/data
@@ -173,7 +189,7 @@ services:
       - default
     restart: unless-stopped
     healthcheck:
-      test: ["CMD", "curl", "-sfo", "/dev/null", "http://localhost:9333/"]
+      test: ['CMD', 'curl', '-sfo', '/dev/null', 'http://localhost:9333/']
       interval: 10s
       timeout: 5s
       retries: 5
@@ -181,14 +197,14 @@ services:
 
   ## NATS messaging system
   nats:
-    image: nats:2.14.6
+    image: nats:2.15.1
     container_name: ayuna-nats
     hostname: ayuna-nats
-    command: ["-js", "-c", "/etc/nats/nats.conf"]
+    command: ['-js', '-c', '/etc/nats/nats.conf']
     ports:
-      - "8180:8080" # WebSocket only
-      - "8222:8222" # Monitoring (optional)
-      - "4222:4222" # TCP client connections
+      - '8180:8080' # WebSocket only
+      - '8222:8222' # Monitoring (optional)
+      - '4222:4222' # TCP client connections
     restart: unless-stopped
     networks:
       - default
@@ -198,10 +214,10 @@ services:
     deploy:
       resources:
         limits:
-          cpus: "2.0"
+          cpus: '2.0'
           memory: 4G
         reservations:
-          cpus: "0.25"
+          cpus: '0.25'
           memory: 256M
 
   ## UI for NATS messaging system
@@ -213,7 +229,7 @@ services:
       nats:
         condition: service_started
     ports:
-      - "31311:31311"
+      - '31311:31311'
     restart: unless-stopped
     networks:
       - default
@@ -228,14 +244,14 @@ services:
     networks:
       - default
     ports:
-      - "5001:5001"
+      - '5001:5001'
     restart: unless-stopped
     env_file:
       - env/docling.env
     volumes:
       - ./data/docling/models:/opt/app-root/src/models
     healthcheck:
-      test: ["CMD", "curl", "-sfo", "/dev/null", "http://localhost:5001/health"]
+      test: ['CMD', 'curl', '-sfo', '/dev/null', 'http://localhost:5001/health']
       interval: 10s
       timeout: 5s
       retries: 5
@@ -243,10 +259,10 @@ services:
     deploy:
       resources:
         limits:
-          cpus: "4.0"
+          cpus: '4.0'
           memory: 8G
         reservations:
-          cpus: "1.0"
+          cpus: '1.0'
           memory: 512M
 
   ## Temporal services for workflow orchestration
@@ -264,8 +280,8 @@ services:
       - default
     volumes:
       - ./data/temporal/scripts:/scripts
-    entrypoint: ["/bin/sh"]
-    command: "/scripts/init-temporal-pgsql.sh"
+    entrypoint: ['/bin/sh']
+    command: '/scripts/init-temporal-pgsql.sh'
 
   temporal:
     image: temporalio/server:1.32
@@ -279,11 +295,11 @@ services:
     networks:
       - default
     ports:
-      - "7233:7233"
+      - '7233:7233'
     volumes:
       - ./data/temporal/dynconf:/etc/temporal/config/dynamicconfig
     healthcheck:
-      test: ["CMD", "nc", "-z", "localhost", "7233"]
+      test: ['CMD', 'nc', '-z', 'localhost', '7233']
       interval: 5s
       timeout: 3s
       start_period: 30s
@@ -292,10 +308,10 @@ services:
     deploy:
       resources:
         limits:
-          cpus: "4.0"
+          cpus: '4.0'
           memory: 8G
         reservations:
-          cpus: "1.0"
+          cpus: '1.0'
           memory: 2G
 
   temporal-create-namespace:
@@ -312,8 +328,8 @@ services:
       - default
     volumes:
       - ./data/temporal/scripts:/scripts
-    entrypoint: ["/bin/sh"]
-    command: "/scripts/create-temporal-ns.sh"
+    entrypoint: ['/bin/sh']
+    command: '/scripts/create-temporal-ns.sh'
 
   temporal-ui:
     image: temporalio/ui:2.54.1
@@ -331,7 +347,7 @@ services:
     ports:
       - 8280:8080
     healthcheck:
-      test: ["CMD", "nc", "-z", "localhost", "8080"]
+      test: ['CMD', 'nc', '-z', 'localhost', '8080']
       interval: 5s
       timeout: 3s
       start_period: 30s
@@ -357,9 +373,9 @@ services:
     healthcheck:
       test:
         [
-          "CMD",
-          "python3",
-          "-c",
+          'CMD',
+          'python3',
+          '-c',
           "import urllib.request; urllib.request.urlopen('http://localhost:6006/health')",
         ]
       interval: 10s
@@ -369,19 +385,19 @@ services:
     deploy:
       resources:
         limits:
-          cpus: "2.0"
+          cpus: '2.0'
           memory: 4G
         reservations:
-          cpus: "0.25"
+          cpus: '0.25'
           memory: 256M
 
   casdoor:
-    image: casbin/casdoor:4.3.0
+    image: casbin/casdoor:4.21.0
     container_name: ayuna-casdoor
     hostname: ayuna-casdoor
     restart: unless-stopped
     ports:
-      - "8380:8380"
+      - '8380:8380'
     environment:
       - GIN_MODE=release
     volumes:
@@ -397,14 +413,67 @@ services:
       valkey:
         condition: service_healthy
     healthcheck:
-      test: ["CMD", "wget", "-qO", "/dev/null", "http://localhost:8380"]
+      test: ['CMD', 'wget', '-qO', '/dev/null', 'http://localhost:8380']
       interval: 10s
       timeout: 5s
       retries: 5
       start_period: 30s
 
+  openfga-migrate:
+    image: openfga/openfga:latest
+    container_name: ayuna-openfga-migrate
+    hostname: ayuna-openfga-migrate
+    depends_on:
+      pgsql:
+        condition: service_healthy
+    command: migrate
+    env_file:
+      - env/openfga.env
+    networks:
+      - default
+
+  openfga:
+    image: openfga/openfga:latest
+    container_name: ayuna-openfga
+    hostname: ayuna-openfga
+    depends_on:
+      openfga-migrate:
+        condition: service_completed_successfully
+    env_file:
+      - env/openfga.env
+    command: run
+    networks:
+      - default
+    ports:
+      # Needed for the http server
+      - '8480:8080'
+      # Needed for the grpc server (if used)
+      - '8481:8081'
+      # Needed for the playground (Do not enable in prod!)
+      # - '3080:3000'
+
+  openfga-studio:
+    image: ghcr.io/prakashm88/openfga-studio:latest
+    container_name: ayuna-openfga-studio
+    hostname: ayuna-openfga-studio
+    ports:
+      - '3080:3000' # Nginx (Static content + Reverse Proxy)
+    env_file:
+      - env/openfga.env
+    healthcheck:
+      test: ['CMD', 'curl', '-f', 'http://localhost:3000/health']
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    restart: unless-stopped
+    networks:
+      - default
+    depends_on:
+      openfga:
+        condition: service_healthy
+
   agentgateway:
-    image: ghcr.io/agentgateway/agentgateway:v1.5.0
+    image: ghcr.io/agentgateway/agentgateway:v1.6.0
     container_name: ayuna-aigw
     hostname: ayuna-aigw
     depends_on:
@@ -416,6 +485,8 @@ services:
         condition: service_healthy
       casdoor:
         condition: service_healthy
+      openfga-studio:
+        condition: service_healthy
       seaweedfs:
         condition: service_healthy
       temporal-ui:
@@ -423,10 +494,10 @@ services:
     networks:
       - default
     ports:
-      - "3180:3000"
-      - "4180:4000"
-      - "8443:8443"
-      - "127.0.0.1:15000:15000"
+      - '3180:3000'
+      - '4180:4000'
+      - '8443:8443'
+      - '127.0.0.1:15000:15000'
     environment:
       - ADMIN_ADDR=0.0.0.0:15000
     volumes:
@@ -437,7 +508,7 @@ services:
     restart: unless-stopped
     healthcheck:
       test:
-        ["CMD", "/tools/wget", "--spider", "-q", "http://localhost:15000/ui"]
+        ['CMD', '/tools/wget', '--spider', '-q', 'http://localhost:15000/ui']
       interval: 10s
       timeout: 5s
       retries: 5
@@ -445,8 +516,8 @@ services:
     deploy:
       resources:
         limits:
-          cpus: "2.0"
+          cpus: '2.0'
           memory: 4G
         reservations:
-          cpus: "0.25"
+          cpus: '0.25'
           memory: 256M
