@@ -37,3 +37,4 @@ sql_dbs:
   - ayuna_aigw_logs
   - ayuna_otel_db
   - ayuna_door_db
+  - ayuna_ofga_db

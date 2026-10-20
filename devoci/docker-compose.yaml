@@ -451,6 +451,15 @@ services:
       - '8481:8081'
       # Needed for the playground (Do not enable in prod!)
       # - '3080:3000'
+    volumes:
+      - extra_tools:/tools
+    healthcheck:
+      test: ['CMD', '/tools/grpc_health_probe', '-addr=:8081']
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+    restart: unless-stopped
 
   openfga-studio:
     image: ghcr.io/prakashm88/openfga-studio:latest
@@ -462,9 +471,10 @@ services:
       - env/openfga.env
     healthcheck:
       test: ['CMD', 'curl', '-f', 'http://localhost:3000/health']
-      interval: 30s
-      timeout: 10s
-      retries: 3
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
     restart: unless-stopped
     networks:
       - default
@@ -482,14 +492,6 @@ services:
       pgsql:
         condition: service_healthy
       phoenix:
-        condition: service_healthy
-      casdoor:
-        condition: service_healthy
-      openfga-studio:
-        condition: service_healthy
-      seaweedfs:
-        condition: service_healthy
-      temporal-ui:
         condition: service_healthy
     networks:
       - default
