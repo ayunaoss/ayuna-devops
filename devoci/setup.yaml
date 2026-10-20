@@ -14,9 +14,10 @@ env_templates:
   agentgateway.yaml.j2: agentgateway.yaml
   casdoor.conf.j2: casdoor.conf
   docling.env.j2: docling.env
+  openfga.env.j2: openfga.env
 
 backend_volumes:
-  - pgsql_data
+  - pgsql_root
   - arcadedb_data
   - arcadedb_backup
   - arcadedb_config

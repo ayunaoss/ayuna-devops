@@ -223,7 +223,7 @@ def setup_postgres(pg_env: dict[str, str]) -> None:
     if pg_container not in cmd_output(["docker", "ps", "-a"]):
         echo_info(f"Starting PostgreSQL server {pg_container}")
         # :Z is an SELinux relabeling option; only meaningful on Linux
-        vol_mount = f"pgsql_data:/var/lib/postgresql/data{':Z' if platform.system() == 'Linux' else ''}"
+        vol_mount = f"pgsql_root:/var/lib/postgresql{':Z' if platform.system() == 'Linux' else ''}"
         run(
             [
                 "docker",
@@ -241,7 +241,7 @@ def setup_postgres(pg_env: dict[str, str]) -> None:
                 vol_mount,
                 "-p",
                 "5432:5432",
-                "pgvector/pgvector:pg17",
+                "pgvector/pgvector:pg18",
             ]
         )
     else:

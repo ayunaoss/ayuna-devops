@@ -23,10 +23,12 @@ gateways:
         - http://ayuna-casdoor:8380
         - http://ayuna-phoenix:6006
         - http://ayuna-seaweedfs:23646
+        - http://ayuna-openfga-studio:3000
         - https://door.ayunaio.internal:8443
         - https://otel.ayunaio.internal:8443
         - https://s3adm.ayunaio.internal:8443
         - https://wfui.ayunaio.internal:8443
+        - https://ofga.ayunaio.internal:8443
       allowHeaders:
         - '*'
       allowMethods:
@@ -53,6 +55,21 @@ routes:
     policies:
       backendAuth:
         passthrough: {}
+
+  - name: openfga
+    gateways: tlsgw
+    hostnames:
+      - ofga.ayunaio.internal
+    matches:
+      - path:
+          pathPrefix: /
+    backends:
+      - host: ayuna-openfga-studio:3000
+    policies:
+      basicAuth:
+        htpasswd:
+          file: /config/.htpasswd
+        mode: strict
 
   - name: phoenix
     gateways: tlsgw

@@ -4,7 +4,7 @@ networks:
     external: true
 
 volumes:
-  pgsql_data:
+  pgsql_root:
     external: true
   arcadedb_data:
     external: true
@@ -59,7 +59,7 @@ services:
     env_file:
       - env/pgsql.env
     volumes:
-      - pgsql_data:/var/lib/postgresql/data
+      - pgsql_root:/var/lib/postgresql
     networks:
       - default
     healthcheck:
@@ -332,7 +332,7 @@ services:
     command: '/scripts/create-temporal-ns.sh'
 
   temporal-ui:
-    image: temporalio/ui:2.54.1
+    image: temporalio/ui:2.56.0
     container_name: ayuna-temporal-ui
     hostname: ayuna-temporal-ui
     depends_on:
@@ -392,7 +392,7 @@ services:
           memory: 256M
 
   casdoor:
-    image: casbin/casdoor:4.21.0
+    image: casbin/casdoor:4.22.0
     container_name: ayuna-casdoor
     hostname: ayuna-casdoor
     restart: unless-stopped
