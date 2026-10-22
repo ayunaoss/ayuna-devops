@@ -115,3 +115,11 @@ routes:
         htpasswd:
           file: /config/.htpasswd
         mode: strict
+
+ui:
+  gateways: tlsgw
+  policies:
+    basicAuth:
+      htpasswd:
+        file: /config/.htpasswd
+      mode: strict
