@@ -1,0 +1,68 @@
+port: 4222    # TCP connections
+http: 8222    # monitoring
+debug: true
+trace: true
+logtime: true
+system_account: AYUNA_SYS
+
+############
+# Accounts #
+############
+accounts {
+  AYUNA_SYS {
+    users: [
+      { user: "{{ nats.admin.username }}", password: "{{ nats.admin.password }}" }
+    ]
+  }
+  AYUNA_AUTH {
+    users: [
+      { user: "{{ nats.auth_callout.username }}", password: "{{ nats.auth_callout.password }}" }
+    ]
+  }
+  AYUNA_SERV {}
+  AYUNA_OTEL {}
+}
+
+################################
+# Authorization (Auth Callout) #
+################################
+authorization {
+  auth_callout {
+    issuer: "{{ nats.auth_callout.issuer_pub }}"
+    xkey: "{{ nats.auth_callout.xkey_pub }}"
+    account: AYUNA_AUTH
+
+    # This instructs NATS to bypass the callout ONLY for these users.
+    # Note: Global users bypass inherently, but explicit account users (like auth_callout) 
+    # must be declared here to avoid a deadlock connection loop.
+    auth_users: ["{{ nats.auth_callout.username }}", "{{ nats.admin.username }}"]
+  }
+}
+
+#############
+# JetStream #
+#############
+jetstream {
+  store_dir: /data
+  max_mem_store: {{ nats.js.max_mem_store }}
+  max_file_store: {{ nats.js.max_file_store }}
+}
+
+###############################
+# WebSocket (browser clients) #
+###############################
+websocket {
+  port: {{ nats.websocket.port }}
+  same_origin: {{ nats.websocket.same_origin | tojson }}
+
+  {% if nats.websocket.no_tls %}
+  no_tls: true
+  {% else %}
+  tls {
+    verify: {{ nats.websocket.tls.verify | tojson }}
+    cert_file: "{{ nats.websocket.tls.cert_file }}"
+    key_file: "{{ nats.websocket.tls.key_file }}"
+    ca_file: "{{ nats.websocket.tls.ca_file }}"
+  }
+  {% endif %}
+}

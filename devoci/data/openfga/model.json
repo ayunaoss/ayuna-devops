@@ -1,0 +1,51 @@
+{
+  "schema_version": "1.1",
+  "type_definitions": [
+    {
+      "type": "user"
+    },
+    {
+      "type": "group",
+      "relations": {
+        "member": {
+          "this": {}
+        }
+      },
+      "metadata": {
+        "relations": {
+          "member": {
+            "directly_related_user_types": [
+              {"type": "user"}
+            ]
+          }
+        }
+      }
+    },
+    {
+      "type": "organization",
+      "relations": {
+        "member": {
+          "this": {}
+        },
+        "admin": {
+          "this": {}
+        }
+      },
+      "metadata": {
+        "relations": {
+          "member": {
+            "directly_related_user_types": [
+              {"type": "user"},
+              {"type": "group", "relation": "member"}
+            ]
+          },
+          "admin": {
+            "directly_related_user_types": [
+              {"type": "user"}
+            ]
+          }
+        }
+      }
+    }
+  ]
+}
